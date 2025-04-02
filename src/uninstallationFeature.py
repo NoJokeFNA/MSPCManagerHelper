@@ -71,7 +71,8 @@ PC_MANAGER_BETA_FILES_TO_DELETE = [
     os.path.join(os.environ['ProgramData'], 'Microsoft', 'Windows', 'Start Menu', 'Programs'),
     os.path.join(os.environ['Public'], 'Desktop'),
     os.path.join(os.environ['SystemRoot'], 'Prefetch'),
-    os.path.join(os.environ['SystemRoot'], 'System32', 'config', 'systemprofile', 'AppData', 'Local', 'Microsoft', 'CLR_v4.0', 'UsageLogs'),
+    os.path.join(os.environ['SystemRoot'], 'System32', 'config', 'systemprofile', 'AppData', 'Local', 'Microsoft',
+                 'CLR_v4.0', 'UsageLogs'),
     os.path.join(os.environ['UserProfile'], 'Desktop')
 ]
 
@@ -89,6 +90,7 @@ POWERSHELL_COMMANDS = [
      ("Get-AppxPackage | Where-Object {$_.Name -like '*Microsoft.PCManager*'} | "
       "ForEach-Object {Remove-AppxPackage -Package $_.PackageFullName}")]
 ]
+
 
 class UninstallationFeature:
     """
