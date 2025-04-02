@@ -20,6 +20,8 @@ class Translator:
         locale (str): The locale for the translations.
         file_path (str): The path to the translation file.
         """
+        self.translations = None
+        self.current_language = None
         self.locale = locale
         self.load_translations(file_path)
 
