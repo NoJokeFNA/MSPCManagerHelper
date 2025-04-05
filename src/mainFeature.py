@@ -6,24 +6,61 @@ import tkinter as tk
 import winreg
 from datetime import datetime
 from tkinter import filedialog, messagebox
+
 from otherFeature import OtherFeature
 from uninstallationFeature import UninstallationFeature
 
+ERROR_ADMIN_REQUIRED = 1
+ERROR_FOLDER_DELETION_REQUIRED = 0x8004070c
+ERROR_NO_WRITE_PERMISSION = 0x800700b7
+PROCESS_NAMES = ["MSPCManager.exe", "MSPCManagerService.exe", "MSPCManagerCore.exe", "MSPCManagerWidget.exe",
+                 "Microsoft.WIC.PCWndManager.Plugin.exe", "MSPCWndManager.exe"]
+
+
 class MainFeature:
+    """
+    Main feature class for managing PC Manager operations.
+
+    Attributes:
+        translator (object): Translator object for translating messages.
+        result_textbox (tk.Text): Textbox for displaying results.
+        other_feature (OtherFeature): Instance of OtherFeature class.
+        uninstallation_feature (UninstallationFeature): Instance of UninstallationFeature class.
+    """
+
     def __init__(self, translator, result_textbox=None):
+        """
+        Initializes the MainFeature class.
+
+        Args:
+            translator (object): Translator object for translating messages.
+            result_textbox (tk.Text, optional): Textbox for displaying results. Defaults to None.
+        """
         self.translator = translator
         self.result_textbox = result_textbox
         self.other_feature = OtherFeature(self.translator, self.result_textbox)
         self.uninstallation_feature = UninstallationFeature(self.translator, self.result_textbox)
 
     def textbox(self, message):
+        """
+        Displays a message in the result textbox.
+
+        Args:
+            message (str): Message to be displayed.
+        """
         message = str(message)
         self.result_textbox.config(state="normal")
         self.result_textbox.insert(tk.END, message + "\n")
         self.result_textbox.config(state="disabled")
-        self.result_textbox.update_idletasks()  # 刷新界面
+        self.result_textbox.update_idletasks()  # Refresh the interface
 
     def get_nsudolc_path(self):
+        """
+        Retrieves the path to the NSudoLC executable based on the processor architecture.
+
+        Returns:
+            str: Path to the NSudoLC executable or None if an error occurs.
+        """
         try:
             with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
                                 r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment") as key:
@@ -47,10 +84,19 @@ class MainFeature:
             return None
 
     def refresh_result_textbox(self):
+        """
+        Refreshes the result textbox for other features.
+        """
         self.other_feature.result_textbox = self.result_textbox
         self.uninstallation_feature.result_textbox = self.result_textbox
 
     def repair_pc_manager(self):
+        """
+        Repairs the PC Manager by uninstalling and reinstalling necessary components.
+
+        Returns:
+            str: Message indicating the result of the operation.
+        """
         try:
             response = messagebox.askyesno(self.translator.translate("repair_pc_manager_notice"),
                                            self.translator.translate("repair_pc_manager_to_perform"))
@@ -65,313 +111,284 @@ class MainFeature:
             return f"{self.translator.translate('repair_pc_manager_error')}: {str(e)}"
 
     def get_pc_manager_logs(self):
+        """
+        Retrieves and compresses PC Manager logs.
+
+        Returns:
+            str: Message indicating the result of the operation.
+        """
         try:
-            # 设置 NSudoLC 路径变量
             nsudolc_path = self.get_nsudolc_path()
             if not nsudolc_path:
                 return "\n.join(messages)"
 
-            # 设置路径变量
-            date_str = datetime.now().strftime(datetime.now().isoformat().replace(":", "."))    # 日期字符串
-            logs_destination = os.path.join(os.getenv("UserProfile"), "Desktop", "Microsoft PC Manager Logs", date_str)   # 日志目标路径
-            program_logs_source_path = os.path.join(os.getenv("ProgramData"), "Windows Master Store")   # 程序日志源路径
-            appdata_clr_4_0_logs_source = os.path.join(os.getenv("LocalAppData"), "Microsoft", "CLR_v4.0", "UsageLogs")  # LocalAppData 下 CLR_v4.0 日志源路径
-            systemroot_clr_4_0_logs_source = os.path.join(os.getenv("SystemRoot"), "System32", "config", "systemprofile", "AppData", "Local", "Microsoft", "CLR_v4.0", "UsageLogs")  # SystemRoot 下 CLR_v4.0 日志源路径
-            common_logs_source = os.path.join(program_logs_source_path, "Common")  # Common 日志源路径
-            crash_files_source = os.path.join(common_logs_source, "Crash")  # Crash 源路径
-            setup_logs_source = os.path.join(program_logs_source_path, "Setup")  # Setup 日志源路径
-            service_logs_source = os.path.join(program_logs_source_path, "ServiceData") # ServiceData 日志源路径
-            exe_setup_logs_source = os.path.join(os.getenv("ProgramData"), "Windows Master Setup")  # EXE 安装器日志源路径
-            logs_zip_archive = os.path.join(os.getenv("UserProfile"), "Desktop")    # 日志压缩包路径
+            date_str = datetime.now().strftime(datetime.now().isoformat().replace(":", "."))
+            logs_destination = os.path.join(os.getenv("UserProfile"), "Desktop", "Microsoft PC Manager Logs", date_str)
+            program_logs_source_path = os.path.join(os.getenv("ProgramData"), "Windows Master Store")
+            appdata_clr_4_0_logs_source = os.path.join(os.getenv("LocalAppData"), "Microsoft", "CLR_v4.0", "UsageLogs")
+            systemroot_clr_4_0_logs_source = os.path.join(os.getenv("SystemRoot"), "System32", "config",
+                                                          "systemprofile", "AppData", "Local", "Microsoft", "CLR_v4.0",
+                                                          "UsageLogs")
+            common_logs_source = os.path.join(program_logs_source_path, "Common")
+            crash_files_source = os.path.join(common_logs_source, "Crash")
+            setup_logs_source = os.path.join(program_logs_source_path, "Setup")
+            service_logs_source = os.path.join(program_logs_source_path, "ServiceData")
+            exe_setup_logs_source = os.path.join(os.getenv("ProgramData"), "Windows Master Setup")
+            logs_zip_archive = os.path.join(os.getenv("UserProfile"), "Desktop")
 
-            # 创建目标目录
-            os.makedirs(logs_destination, exist_ok=True)    # 创建日志目标目录
-            os.makedirs(os.path.join(logs_destination, "Common"), exist_ok=True)    # 创建 Common 目标目录
+            os.makedirs(logs_destination, exist_ok=True)
+            os.makedirs(os.path.join(logs_destination, "Common"), exist_ok=True)
 
-            # 复制 AppData 下的 CLR_v4.0 日志
-            if os.path.exists(appdata_clr_4_0_logs_source):
-                try:  # 使用 cmd.exe 拉起的进程需要 "-ShowWindowMode:Hide" 参数，不依赖 cmd.exe 时不需要 "cmd.exe", "/C" 参数
-                    appdata_clr_4_0_result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "Robocopy.exe",
-                                                             appdata_clr_4_0_logs_source, os.path.join(logs_destination, "AppData_CLR_v4.0"),
-                                                             "*Microsoft.WIC.PCWndManager.Plugin*.log",
-                                                             "*MSPCManager*.log", "*MSPCWndManager*.log",
-                                                             "*PCMAutoRun*.log", "*PCMCheckSum*.log"],
-                        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                    if appdata_clr_4_0_result.returncode == 0:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_appdata_clr_4_0_logs_success"))
-                    else:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_appdata_clr_4_0_logs_error") + f":\n{appdata_clr_4_0_result.stdout}")
-                except Exception as e:
-                    self.textbox(self.translator.translate("retrieve_pc_manager_appdata_clr_4_0_logs_error") + f":\n{str(e)}")
-            else:
-                pass
+            self._copy_logs(nsudolc_path, appdata_clr_4_0_logs_source,
+                            os.path.join(logs_destination, "AppData_CLR_v4.0"), "*.log")
+            self._copy_logs(nsudolc_path, systemroot_clr_4_0_logs_source,
+                            os.path.join(logs_destination, "SystemRoot_CLR_v4.0"), "*.log")
+            self._copy_logs(nsudolc_path, common_logs_source, os.path.join(logs_destination, "Common"), "*.log")
+            self._copy_logs(nsudolc_path, crash_files_source, os.path.join(logs_destination, "Common", "Crash"), "*.*")
+            self._copy_logs(nsudolc_path, setup_logs_source, os.path.join(logs_destination, "Setup"), "*.*")
+            self._copy_logs(nsudolc_path, service_logs_source, os.path.join(logs_destination, "ServiceData"), "*.*")
+            self._copy_logs(nsudolc_path, exe_setup_logs_source, os.path.join(logs_destination, "Windows Master Setup"),
+                            "*.*")
 
-            # 复制 SystemRoot 下的 CLR_v4.0 日志
-            if os.path.exists(systemroot_clr_4_0_logs_source):
-                try:  # 使用 cmd.exe 拉起的进程需要 "-ShowWindowMode:Hide" 参数，不依赖 cmd.exe 时不需要 "cmd.exe", "/C" 参数
-                    systemroot_clr_4_0_result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "Robocopy.exe",
-                                                                systemroot_clr_4_0_logs_source, os.path.join(logs_destination, "SystemRoot_CLR_v4.0"),
-                                                                "*Microsoft.WIC.PCWndManager.Plugin*.log",
-                                                                "*MSPCManager*.log", "*MSPCWndManager*.log",
-                                                                "*PCMAutoRun*.log", "*PCMCheckSum*.log"],
-                         capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                    if systemroot_clr_4_0_result.returncode == 0:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_systemroot_clr_4_0_logs_success"))
-                    else:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_systemroot_clr_4_0_logs_error") + f":\n{systemroot_clr_4_0_result.stdout}")
-                except Exception as e:
-                    self.textbox(self.translator.translate("retrieve_pc_manager_systemroot_clr_4_0_logs_error") + f":\n{str(e)}")
-            else:
-                pass
+            self._copy_other_logs(nsudolc_path, program_logs_source_path, logs_destination)
 
-            # 复制 Common 下的 .log 文件（使用日志）
-            if os.path.exists(common_logs_source):
-                try:    # 使用 cmd.exe 拉起的进程需要 "-ShowWindowMode:Hide" 参数，不依赖 cmd.exe 时不需要 "cmd.exe", "/C" 参数
-                    common_result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "xcopy.exe",
-                         os.path.join(common_logs_source, "*.log"), os.path.join(logs_destination, "Common"),
-                         "/H", "/I", "/S", "/Y"],  # 包含隐藏和系统文件；如果目标不存在，并且使用时未指定文件，则假定目标为目录；包括子目录（不复制空目录）；覆盖
-                        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                    if common_result.returncode == 0:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_common_logs_success"))
-                    else:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_common_logs_error") + f":\n{common_result.stdout}")
-                except Exception as e:
-                    self.textbox(self.translator.translate("retrieve_pc_manager_common_logs_error") + f":\n{str(e)}")
-            else:
-                pass
+            self._copy_evtx_log(nsudolc_path, logs_destination)
 
-            # 复制 Crash 文件夹（崩溃文件）
-            if os.path.exists(crash_files_source) and os.listdir(crash_files_source):
-                try:  # 使用 cmd.exe 拉起的进程需要 "-ShowWindowMode:Hide" 参数，不依赖 cmd.exe 时不需要 "cmd.exe", "/C" 参数
-                    common_result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "xcopy.exe",
-                         os.path.join(crash_files_source, "*.*"), os.path.join(logs_destination, "Common", "Crash"),
-                         "/H", "/I", "/S", "/Y"], # 包含隐藏和系统文件；如果目标不存在，并且使用时未指定文件，则假定目标为目录；包括子目录（不复制空目录）；覆盖
-                         capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                    if common_result.returncode == 0:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_crash_files_success"))
-                    else:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_crash_files_error") + f":\n{common_result.stdout}")
-                except Exception as e:
-                    self.textbox(self.translator.translate("retrieve_pc_manager_crash_files_error") + f":\n{str(e)}")
-            else:
-                pass
+            self._retrieve_computer_info(logs_destination)
 
-            # 复制 Setup 文件夹（安装日志）
-            if os.path.exists(setup_logs_source):
-                try:  # 使用 cmd.exe 拉起的进程需要 "-ShowWindowMode:Hide" 参数，不依赖 cmd.exe 时不需要 "cmd.exe", "/C" 参数
-                    setup_result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "xcopy.exe",
-                         setup_logs_source, os.path.join(logs_destination, "Setup"), "/H", "/I", "/S", "/Y"],
-                        # 包含隐藏和系统文件；如果目标不存在，并且使用时未指定文件，则假定目标为目录；包括子目录（不复制空目录）；覆盖
-                        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                    if setup_result.returncode == 0:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_setup_logs_success"))
-                    else:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_setup_logs_error") + f":\n{setup_result.stdout}")
-                except Exception as e:
-                    self.textbox(self.translator.translate("retrieve_pc_manager_setup_logs_error") + f":\n{str(e)}")
-            else:
-                pass
-
-            # 复制 ServiceData 文件夹（服务日志）
-            if os.path.exists(service_logs_source):
-                try:  # 使用 cmd.exe 拉起的进程需要 "-ShowWindowMode:Hide" 参数，不依赖 cmd.exe 时不需要 "cmd.exe", "/C" 参数
-                    service_data_result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "xcopy.exe",
-                         service_logs_source, os.path.join(logs_destination, "ServiceData"), "/H", "/I", "/S", "/Y"],
-                        # 包含隐藏和系统文件；如果目标不存在，并且使用时未指定文件，则假定目标为目录；包括子目录（不复制空目录）；覆盖
-                        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                    if service_data_result.returncode == 0:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_service_logs_success"))
-                    else:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_service_logs_error") + f":\n{service_data_result.stdout}")
-                except Exception as e:
-                    self.textbox(self.translator.translate("retrieve_pc_manager_service_logs_error") + f":\n{str(e)}")
-            else:
-                pass
-
-            # 复制 EXE 安装器日志
-            if os.path.exists(exe_setup_logs_source):
-                try:  # 使用 cmd.exe 拉起的进程需要 "-ShowWindowMode:Hide" 参数，不依赖 cmd.exe 时不需要 "cmd.exe", "/C" 参数
-                    exe_setup_result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "xcopy.exe",
-                         exe_setup_logs_source, os.path.join(logs_destination, "Windows Master Setup"), "/H", "/I", "/S", "/Y"],
-                        # 包含隐藏和系统文件；如果目标不存在，并且使用时未指定文件，则假定目标为目录；包括子目录（不复制空目录）；覆盖
-                        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                    if exe_setup_result.returncode == 0:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_exe_setup_logs_success"))
-                    else:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_exe_setup_logs_error") + f":\n{exe_setup_result.stdout}")
-                except Exception as e:
-                    self.textbox(self.translator.translate("retrieve_pc_manager_exe_setup_logs_error") + f":\n{str(e)}")
-            else:
-                pass
-
-            # 复制未列出的日志
-            try:
-                isfile = [file for file in os.listdir(program_logs_source_path) if
-                          not os.path.isfile(os.path.join(program_logs_source_path, file))]
-                filtered = ["Common", "Setup", "ServiceData"]
-                other_logs_destinations = []
-                for name in isfile:
-                    try:
-                        if any([".log" in file for file in
-                                os.listdir(os.path.join(program_logs_source_path, name))]) and name not in filtered:
-                            other_logs_destinations.append((os.path.join(program_logs_source_path, name), name))
-                    except:
-                        pass
-
-                for destination, file_name in other_logs_destinations:
-                    try:  # 使用 cmd.exe 拉起进程时需要 "-ShowWindowMode:Hide" 参数，不依赖 cmd.exe 时不需要 "cmd.exe", "/C" 参数
-                        nsudolc_copy_other_logs_cmd = [nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "xcopy.exe", destination,
-                                                       os.path.join(os.path.join(logs_destination, "OtherLogs"), file_name), "/H", "/I", "/S", "/Y"]
-                        # 包含隐藏和系统文件；如果目标不存在，并且使用时未指定文件，则假定目标为目录；包括子目录（不复制空目录）；覆盖
-                        other_logs_result = subprocess.run(nsudolc_copy_other_logs_cmd, capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                        if other_logs_result.returncode == 0:
-                            self.textbox(self.translator.translate("retrieve_pc_manager_other_logs_success"))
-                        else:
-                            self.textbox(self.translator.translate("retrieve_pc_manager_other_logs_error") + f": {other_logs_result.stdout}")
-                    except Exception as e:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_other_logs_error") + f": {str(e)}")
-            except Exception as e:
-                self.textbox(self.translator.translate("retrieve_pc_manager_other_logs_error") + f": {str(e)}")
-
-            # 复制 Application.evtx
-            if os.path.exists(os.path.join(os.getenv("SystemRoot"), "System32", "winevt", "Logs", "Application.evtx")):
-                try:
-                    application_evtx_result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "xcopy.exe",
-                         os.path.join(os.getenv("SystemRoot"), "System32", "winevt", "Logs", "Application.evtx"), logs_destination, "/H", "/I", "/Y"],
-                        # 包含隐藏和系统文件；如果目标不存在，并且使用时未指定文件，则假定目标为目录；覆盖
-                        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                    if application_evtx_result.returncode == 0:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_evtx_success"))
-                    else:
-                        self.textbox(self.translator.translate("retrieve_pc_manager_evtx_error") + f":\n{application_evtx_result.stdout}")
-                except Exception as e:
-                    self.textbox(self.translator.translate("retrieve_pc_manager_evtx_error") + f":\n{str(e)}")
-            else:
-                pass
-
-            # 获取计算机信息并保存到 ComputerInfo.txt
-            try:
-                self.textbox("\n" + self.translator.translate("retrieving_computer_info"))
-                computer_info_path = os.path.join(logs_destination, "ComputerInfo.txt")
-                subprocess.run(["powershell.exe", "-Command", "Get-ComputerInfo | Out-File -FilePath '{}' -Encoding utf8".format(computer_info_path)],
-                               capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                self.textbox(self.translator.translate("retrieve_computer_info_success"))
-            except FileNotFoundError as e:
-                self.textbox(f"{self.translator.translate('powershell_not_found')}\n{str(e)}: {e.filename}")
-            except Exception as e:
-                self.textbox(self.translator.translate("retrieve_computer_info_error") + f":\n{str(e)}")
-
-            # 输出 MSPCManagerHelper 版本到 MSPCManagerHelperInfo.txt
-
-            # 传入用户输入的内容到 UserInputInfo.txt
-
-            # 询问是否选择获取 Dumps
             response_for_retrieve_dumps = messagebox.askyesno(
                 self.translator.translate("ask_to_retrieve_pc_manager_dumps_notice"),
                 self.translator.translate("ask_to_retrieve_pc_manager_dumps")
             )
 
             if response_for_retrieve_dumps:
-                dumps_destination = os.path.join(logs_destination, 'Dumps')
-                os.makedirs(dumps_destination, exist_ok=True)  # 创建 Dumps 目标目录
+                self._retrieve_dumps(nsudolc_path, logs_destination, date_str)
 
-                try:
-                    with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
-                                        r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment") as key:
-                        processor_architecture = winreg.QueryValueEx(key, "PROCESSOR_ARCHITECTURE")[0]
+            self._compress_logs(logs_destination, logs_zip_archive, date_str)
 
-                    # 根据处理器架构设定 ProcDump 变量
-                    if processor_architecture == "AMD64":
-                        if hasattr(sys, '_MEIPASS'):
-                            procdump_path = os.path.join(sys._MEIPASS, "tools", "ProcDump", "procdump64.exe")
-                        else:
-                            procdump_path = os.path.join("tools", "ProcDump", "procdump64.exe")
-                    elif processor_architecture == "ARM64":
-                        if hasattr(sys, '_MEIPASS'):
-                            procdump_path = os.path.join(sys._MEIPASS, "tools", "ProcDump", "procdump64a.exe")
-                        else:
-                            procdump_path = os.path.join("tools", "ProcDump", "procdump64a.exe")
-                    else:
-                        self.textbox(self.translator.translate("no_match_procdump_version"))
-                        return "\n.join(messages)"
+            response_for_clear_logs = messagebox.askyesno(
+                self.translator.translate("ask_to_clear_pc_manager_logs_notice"),
+                self.translator.translate("ask_to_clear_pc_manager_logs")
+            )
 
-                    # 输出许可协议
-                    self.textbox("\n" + self.translator.translate("procdump_agreement"))
-
-                    # 获取 Dump 文件
-                    for process_name in ["MSPCManager.exe", "MSPCManagerService.exe", "MSPCManagerCore.exe", "MSPCManagerWidget.exe",
-                                 "Microsoft.WIC.PCWndManager.Plugin.exe", "MSPCWndManager.exe"]:
-                        self.textbox("\n" + f"{self.translator.translate('retrieving_progress_name')}: {process_name}")
-                        dump_file = os.path.join(dumps_destination, f"{process_name}_{date_str}.dmp")
-                        try:
-                            procdump_cmd = [procdump_path, "-accepteula", "-ma", process_name, dump_file]
-                            procdump_result = subprocess.run(procdump_cmd, capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                            if procdump_result.returncode == 1:
-                                self.textbox(self.translator.translate("retrieve_pc_manager_dumps_success") + f": {dump_file}")
-                            elif procdump_result.returncode == 4294967294:  # 进程未启动
-                                self.textbox(self.translator.translate("retrieve_pc_manager_dumps_code_4294967294"))
-                            else:
-                                self.textbox({procdump_result.returncode})
-                                self.textbox(self.translator.translate("retrieve_pc_manager_dumps_error") + f": {procdump_result.stdout}")
-                        except subprocess.CalledProcessError as e:
-                            self.textbox(self.translator.translate("retrieve_pc_manager_dumps_error") + f":\n{str(e)}")
-
-                except Exception as e:
-                    self.textbox(self.translator.translate("retrieve_pc_manager_logs_error") + f":\n{str(e)}")
-
-            # 压缩日志
-            try:
-                self.textbox("\n" + self.translator.translate("compressing_pc_manager_logs"))
-                zip_file_name = f"{self.translator.translate('pc_manager_logs_zip_archive')}_{date_str}"
-                zip_file_path = os.path.join(logs_zip_archive, zip_file_name)
-                shutil.make_archive(zip_file_path, 'zip', logs_destination)
-                self.textbox(self.translator.translate("path_to_pc_manager_logs_zip_archive") + f": {zip_file_path}.zip")
-                messagebox.showwarning(self.translator.translate("warning"),
-                                        self.translator.translate("do_not_share_log_files_with_untrusted_users"))
-                self.textbox("\n" + self.translator.translate("do_not_share_log_files_with_untrusted_users"))
-
-            except Exception as e:
-                self.textbox(self.translator.translate("retrieve_pc_manager_logs_error") + f":\n{str(e)}")
-
-            # 清理获取到的日志的文件夹
-            try:
-                response_for_clear_logs = messagebox.askyesno(
-                    self.translator.translate("ask_to_clear_pc_manager_logs_notice"),
-                    self.translator.translate("ask_to_clear_pc_manager_logs")
-                )
-
-                if response_for_clear_logs:
-                    nsudolc_path = self.get_nsudolc_path()
-                    if nsudolc_path:    # 使用 cmd.exe 拉起的进程需要 "-ShowWindowMode:Hide" 参数，不依赖 cmd.exe 时不需要 "cmd.exe", "/C" 参数
-                        clear_logs_destination = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "cmd.exe", "/C", "rmdir", "/S", "/Q", "%UserProfile%\\Desktop\\Microsoft PC Manager Logs"],
-                            capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
-                        if clear_logs_destination.returncode == 0:
-                            self.textbox("\n" + self.translator.translate("clearing_pc_manager_logs_success"))
-                        else:
-                            self.textbox(self.translator.translate("clearing_pc_manager_logs_error") + f":\n{clear_logs_destination.stdout}")
-                else:
-                    pass
-
-            except Exception as e:
-                self.textbox(self.translator.translate("clearing_pc_manager_logs_error") + f":\n{str(e)}")
+            if response_for_clear_logs:
+                self._clear_logs(nsudolc_path)
 
             return "\n" + self.translator.translate("retrieve_pc_manager_logs_success")
 
         except Exception as e:
             self.textbox(self.translator.translate("retrieve_pc_manager_logs_error") + f":\n{str(e)}")
 
-    def debug_dev_mode(self):
+    def _copy_logs(self, nsudolc_path, source, destination, pattern):
+        """
+        Copies logs from the source to the destination using the specified pattern.
+
+        Args:
+            nsudolc_path (str): Path to the NSudoLC executable.
+            source (str): Source directory.
+            destination (str): Destination directory.
+            pattern (str): File pattern to match.
+        """
+        if os.path.exists(source):
+            try:
+                result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "Robocopy.exe",
+                                         source, destination, pattern],
+                                        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                if result.returncode == 0:
+                    self.textbox(self.translator.translate("retrieve_pc_manager_logs_success"))
+                else:
+                    self.textbox(self.translator.translate("retrieve_pc_manager_logs_error") + f":\n{result.stdout}")
+            except Exception as e:
+                self.textbox(self.translator.translate("retrieve_pc_manager_logs_error") + f":\n{str(e)}")
+
+    def _copy_other_logs(self, nsudolc_path, program_logs_source_path, logs_destination):
+        """
+        Copies other logs from the source to the destination.
+
+        Args:
+            nsudolc_path (str): Path to the NSudoLC executable.
+            program_logs_source_path (str): Source directory.
+            logs_destination (str): Destination directory.
+        """
         try:
-            # 打开文件选择框
+            isfile = [file for file in os.listdir(program_logs_source_path) if
+                      not os.path.isfile(os.path.join(program_logs_source_path, file))]
+            filtered = ["Common", "Setup", "ServiceData"]
+            other_logs_destinations = []
+            for name in isfile:
+                try:
+                    if any([".log" in file for file in
+                            os.listdir(os.path.join(program_logs_source_path, name))]) and name not in filtered:
+                        other_logs_destinations.append((os.path.join(program_logs_source_path, name), name))
+                except:
+                    pass
+
+            for destination, file_name in other_logs_destinations:
+                try:
+                    result = subprocess.run(
+                        [nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "xcopy.exe", destination,
+                         os.path.join(os.path.join(logs_destination, "OtherLogs"), file_name), "/H", "/I", "/S", "/Y"],
+                        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                    if result.returncode == 0:
+                        self.textbox(self.translator.translate("retrieve_pc_manager_other_logs_success"))
+                    else:
+                        self.textbox(
+                            self.translator.translate("retrieve_pc_manager_other_logs_error") + f": {result.stdout}")
+                except Exception as e:
+                    self.textbox(self.translator.translate("retrieve_pc_manager_other_logs_error") + f": {str(e)}")
+        except Exception as e:
+            self.textbox(self.translator.translate("retrieve_pc_manager_other_logs_error") + f": {str(e)}")
+
+    def _copy_evtx_log(self, nsudolc_path, logs_destination):
+        """
+        Copies the Application.evtx log to the destination.
+
+        Args:
+            nsudolc_path (str): Path to the NSudoLC executable.
+            logs_destination (str): Destination directory.
+        """
+        if os.path.exists(os.path.join(os.getenv("SystemRoot"), "System32", "winevt", "Logs", "Application.evtx")):
+            try:
+                result = subprocess.run([nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "xcopy.exe",
+                                         os.path.join(os.getenv("SystemRoot"), "System32", "winevt", "Logs",
+                                                      "Application.evtx"), logs_destination, "/H", "/I", "/Y"],
+                                        capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                if result.returncode == 0:
+                    self.textbox(self.translator.translate("retrieve_pc_manager_evtx_success"))
+                else:
+                    self.textbox(self.translator.translate("retrieve_pc_manager_evtx_error") + f":\n{result.stdout}")
+            except Exception as e:
+                self.textbox(self.translator.translate("retrieve_pc_manager_evtx_error") + f":\n{str(e)}")
+
+    def _retrieve_computer_info(self, logs_destination):
+        """
+        Retrieves computer information and saves it to a file.
+
+        Args:
+            logs_destination (str): Destination directory.
+        """
+        try:
+            self.textbox("\n" + self.translator.translate("retrieving_computer_info"))
+            computer_info_path = os.path.join(logs_destination, "ComputerInfo.txt")
+            subprocess.run(["powershell.exe", "-Command",
+                            "Get-ComputerInfo | Out-File -FilePath '{}' -Encoding utf8".format(computer_info_path)],
+                           capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            self.textbox(self.translator.translate("retrieve_computer_info_success"))
+        except FileNotFoundError as e:
+            self.textbox(f"{self.translator.translate('powershell_not_found')}\n{str(e)}: {e.filename}")
+        except Exception as e:
+            self.textbox(self.translator.translate("retrieve_computer_info_error") + f":\n{str(e)}")
+
+    def _retrieve_dumps(self, nsudolc_path, logs_destination, date_str):
+        """
+        Retrieves dump files for specified processes.
+
+        Args:
+            nsudolc_path (str): Path to the NSudoLC executable.
+            logs_destination (str): Destination directory.
+            date_str (str): Date string for naming the dump files.
+        """
+        dumps_destination = os.path.join(logs_destination, 'Dumps')
+        os.makedirs(dumps_destination, exist_ok=True)
+
+        try:
+            with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE,
+                                r"SYSTEM\CurrentControlSet\Control\Session Manager\Environment") as key:
+                processor_architecture = winreg.QueryValueEx(key, "PROCESSOR_ARCHITECTURE")[0]
+
+            if processor_architecture == "AMD64":
+                if hasattr(sys, '_MEIPASS'):
+                    procdump_path = os.path.join(sys._MEIPASS, "tools", "ProcDump", "procdump64.exe")
+                else:
+                    procdump_path = os.path.join("tools", "ProcDump", "procdump64.exe")
+            elif processor_architecture == "ARM64":
+                if hasattr(sys, '_MEIPASS'):
+                    procdump_path = os.path.join(sys._MEIPASS, "tools", "ProcDump", "procdump64a.exe")
+                else:
+                    procdump_path = os.path.join("tools", "ProcDump", "procdump64a.exe")
+            else:
+                self.textbox(self.translator.translate("no_match_procdump_version"))
+                return "\n.join(messages)"
+
+            self.textbox("\n" + self.translator.translate("procdump_agreement"))
+
+            for process_name in PROCESS_NAMES:
+                self.textbox("\n" + f"{self.translator.translate('retrieving_progress_name')}: {process_name}")
+                dump_file = os.path.join(dumps_destination, f"{process_name}_{date_str}.dmp")
+                try:
+                    result = subprocess.run([procdump_path, "-accepteula", "-ma", process_name, dump_file],
+                                            capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+                    if result.returncode == ERROR_ADMIN_REQUIRED:
+                        self.textbox(self.translator.translate("retrieve_pc_manager_dumps_success") + f": {dump_file}")
+                    elif result.returncode == 4294967294:
+                        self.textbox(self.translator.translate("retrieve_pc_manager_dumps_code_4294967294"))
+                    else:
+                        self.textbox({result.returncode})
+                        self.textbox(
+                            self.translator.translate("retrieve_pc_manager_dumps_error") + f": {result.stdout}")
+                except subprocess.CalledProcessError as e:
+                    self.textbox(self.translator.translate("retrieve_pc_manager_dumps_error") + f":\n{str(e)}")
+
+        except Exception as e:
+            self.textbox(self.translator.translate("retrieve_pc_manager_logs_error") + f":\n{str(e)}")
+
+    def _compress_logs(self, logs_destination, logs_zip_archive, date_str):
+        """
+        Compresses the logs into a zip file.
+
+        Args:
+            logs_destination (str): Destination directory.
+            logs_zip_archive (str): Directory to save the zip file.
+            date_str (str): Date string for naming the zip file.
+        """
+        try:
+            self.textbox("\n" + self.translator.translate("compressing_pc_manager_logs"))
+            zip_file_name = f"{self.translator.translate('pc_manager_logs_zip_archive')}_{date_str}"
+            zip_file_path = os.path.join(logs_zip_archive, zip_file_name)
+            shutil.make_archive(zip_file_path, 'zip', logs_destination)
+            self.textbox(self.translator.translate("path_to_pc_manager_logs_zip_archive") + f": {zip_file_path}.zip")
+            messagebox.showwarning(self.translator.translate("warning"),
+                                   self.translator.translate("do_not_share_log_files_with_untrusted_users"))
+            self.textbox("\n" + self.translator.translate("do_not_share_log_files_with_untrusted_users"))
+
+        except Exception as e:
+            self.textbox(self.translator.translate("retrieve_pc_manager_logs_error") + f":\n{str(e)}")
+
+    def _clear_logs(self, nsudolc_path):
+        """
+        Clears the logs from the desktop.
+
+        Args:
+            nsudolc_path (str): Path to the NSudoLC executable.
+        """
+        try:
+            result = subprocess.run(
+                [nsudolc_path, "-U:T", "-P:E", "-ShowWindowMode:Hide", "cmd.exe", "/C", "rmdir", "/S", "/Q",
+                 "%UserProfile%\\Desktop\\Microsoft PC Manager Logs"],
+                capture_output=True, text=True, creationflags=subprocess.CREATE_NO_WINDOW)
+            if result.returncode == 0:
+                self.textbox("\n" + self.translator.translate("clearing_pc_manager_logs_success"))
+            else:
+                self.textbox(self.translator.translate("clearing_pc_manager_logs_error") + f":\n{result.stdout}")
+        except Exception as e:
+            self.textbox(self.translator.translate("clearing_pc_manager_logs_error") + f":\n{str(e)}")
+
+    def debug_dev_mode(self):
+        """
+        Debugs the developer mode by running selected files.
+
+        Returns:
+            str: Message indicating the result of the operation.
+        """
+        try:
             file_paths = filedialog.askopenfilenames(filetypes=[("*", "*")])
 
             if file_paths:
                 results = []
                 for file_path in file_paths:
-                    # 使用 subprocess 运行选中的文件
                     result = subprocess.run([file_path], capture_output=True, text=True)
                     results.append(result.stdout)
-                return self.translator.translate("feature_unavailable") + '\n' + '\n'.join(results)
+                return self.translate("feature_unavailable") + '\n' + '\n'.join(results)
             else:
                 return self.translator.translate("no_files_selected")
         except Exception as e:
